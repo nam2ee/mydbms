@@ -1,17 +1,23 @@
-use std::error::Error;
+use std::{error::Error};
 use crate::util::read_varint;
+
+
+
+
+
 
 pub struct Cell{}
 
 impl Cell{
 
-    pub fn read_cell_pointer_array(file_data: &[u8], cell_count: u16) -> Vec<u16> {
+    pub fn read_cell_pointer_array(page_start: &[u8], cell_count: u16) -> Vec<u16> {
+
         let mut pointers = Vec::new();
-        let start_offset = 108; 
+        let start_offset = 8; 
         
         for i in 0..cell_count {
             let pos = start_offset + (i * 2) as usize;
-            let pointer = u16::from_be_bytes([file_data[pos], file_data[pos + 1]]);
+            let pointer = u16::from_be_bytes([page_start[pos], page_start[pos + 1]]);
             pointers.push(pointer);
         }
 
