@@ -3,6 +3,7 @@ use std::fs::File;
 use std::error::Error;
 
 
+
 mod page;
 mod util;
 mod read;
@@ -43,17 +44,42 @@ fn main() -> Result<(), Box<dyn Error >>{
             let mut result:String = String::from("");
 
             for v in ptrs{
-                let k = Cell::parse_cell(&page_0, (v-100) as usize );
-
-                if let Ok(name) = k{
+                let tmp = Cell::parse_cell(&page_0, (v-100) as usize );
+                if let Ok(name) = tmp{
                     if name[1] != String::from("sqlite_sequence") {
                         result = result +  &format!("{} ", name[1]);
                     }
                 }
             }
             println!("{}", result);
+
         }
-        _ => panic!("Missing or invalid command passed: {}", command),
+        sql => {
+            let mut file = File::open(&args[1])?;
+           
+            let page_size = SqliteRead::page_size(&mut file)?;
+            let table_count = SqliteRead::table_count(&mut file)?;
+            let page_0 = SqliteRead::read_first_page(&mut file, page_size)?;
+            let ptrs = Cell::read_cell_pointer_array(&page_0, table_count);
+
+            let mut result =vec![];
+            for v in ptrs{
+                let metadata = Cell::parse_cell(&page_0, (v-100) as usize)?; //considering header...
+                if metadata[1] != String::from("sqlite_sequence") {
+                        result.push((metadata[1].clone(),metadata[3].clone()));
+                }
+            }
+            
+            let table_name = sql.split(" ").last().unwrap();
+            for i in result{
+                if table_name == i.0{
+                    let page = SqliteRead::read_page_n(&mut file, i.1.parse::<u16>().unwrap(), page_size)?;
+                    let row_count = SqliteRead::row_count(&page)?;
+                    println!("{}", row_count);
+                }
+            }
+        }
+        
     }
 
     Ok(())
