@@ -27,3 +27,4 @@ pub fn read_varint(data: &[u8]) -> Result<(u64, usize), Box<dyn std::error::Erro
     
     Ok((result, bytes_read)) // (값, 읽은 바이트 수)
 }
+

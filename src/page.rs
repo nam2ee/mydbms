@@ -1,6 +1,6 @@
-use std::{error::Error};
+use std::{collections::HashMap, error::Error};
 use crate::util::read_varint;
-
+use regex::Regex;
 
 
 
@@ -56,6 +56,73 @@ impl Cell{
         }
 
         Ok(values) // [type, name, tbl_name, rootpage, sql]
+    }
+
+    pub fn parse_cell_as_map(
+        data: &[u8], 
+        offset: usize, 
+        column_names: &[String]
+    ) -> Result<HashMap<String, String>, Box<dyn Error>> {
+        let values = Self::parse_cell(data, offset)?;
+        
+        if values.len() != column_names.len() {
+            return Err(format!(
+                "Column count mismatch: expected {}, got {}", 
+                column_names.len(), 
+                values.len()
+            ).into());
+        }
+
+        let mut row = HashMap::new();
+        for (col_name, value) in column_names.iter().zip(values.iter()) {
+            row.insert(col_name.clone(), value.clone());
+        }
+
+        Ok(row)
+    }
+
+
+    pub fn parse_create_table(sql: &str) -> Result<Vec<String>, Box<dyn Error>> {
+        // (?s)는 dotall 모드 - '.'가 newline도 매치하도록 함
+        // *? 는 lazy matching - 가능한 최소로 매치
+        let re = Regex::new(r"(?s)CREATE TABLE \w+\s*\((.*?)\)")?;
+
+        if let Some(caps) = re.captures(sql) {
+            let columns_str = &caps[1];
+
+            // 쉼표로 분리하되, 괄호 안의 쉼표는 무시 (예: CHECK 제약조건)
+            let columns: Vec<String> = columns_str
+                .split(',')
+                .filter_map(|col| {
+                    let trimmed = col.trim();
+
+                    // 빈 문자열이나 제약조건은 스킵
+                    if trimmed.is_empty() {
+                        return None;
+                    }
+
+                    // 테이블 제약조건 스킵 (PRIMARY KEY, FOREIGN KEY, CHECK 등)
+                    let upper = trimmed.to_uppercase();
+                    if upper.starts_with("PRIMARY KEY") 
+                       || upper.starts_with("FOREIGN KEY")
+                       || upper.starts_with("UNIQUE")
+                       || upper.starts_with("CHECK")
+                       || upper.starts_with("CONSTRAINT") {
+                        return None;
+                    }
+
+                    // 첫 번째 단어만 추출 (컬럼 이름)
+                    trimmed
+                        .split_whitespace()
+                        .next()
+                        .map(|s| s.to_string())
+                })
+                .collect();
+            
+            Ok(columns)
+        } else {
+            Err("Failed to parse CREATE TABLE".into())
+        }
     }
 
     

@@ -23,7 +23,7 @@ impl SqliteRead{
         let table_count = u16::from_be_bytes([header[103], header[104]]) as u16;
         Ok(table_count)
     }
-
+    
     
     /// doesn't works for first page. choose another target page.  
     pub fn row_count(page: & Vec<u8>) -> Result<u16, Box<dyn Error>>{

@@ -7,10 +7,12 @@ use std::error::Error;
 mod page;
 mod util;
 mod read;
+mod sql_engine;
 
 use page::Cell;
 
 use crate::read::SqliteRead;
+use sql_engine::sql_engine;
 
 fn main() -> Result<(), Box<dyn Error >>{
     // Parse arguments
@@ -47,7 +49,7 @@ fn main() -> Result<(), Box<dyn Error >>{
                 let tmp = Cell::parse_cell(&page_0, (v-100) as usize );
                 if let Ok(name) = tmp{
                     if name[1] != String::from("sqlite_sequence") {
-                        result = result +  &format!("{} ", name[1]);
+                        result = result +  &format!("{}", name[1]);
                     }
                 }
             }
@@ -66,18 +68,12 @@ fn main() -> Result<(), Box<dyn Error >>{
             for v in ptrs{
                 let metadata = Cell::parse_cell(&page_0, (v-100) as usize)?; //considering header...
                 if metadata[1] != String::from("sqlite_sequence") {
-                        result.push((metadata[1].clone(),metadata[3].clone()));
+                        result.push(vec![metadata[1].clone(),metadata[3].clone(), metadata[4].clone()]); // table name, table's page index 
                 }
             }
-            
-            let table_name = sql.split(" ").last().unwrap();
-            for i in result{
-                if table_name == i.0{
-                    let page = SqliteRead::read_page_n(&mut file, i.1.parse::<u16>().unwrap(), page_size)?;
-                    let row_count = SqliteRead::row_count(&page)?;
-                    println!("{}", row_count);
-                }
-            }
+
+            sql_engine(&mut file, sql, result, page_size);
+
         }
         
     }
