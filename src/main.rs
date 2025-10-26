@@ -50,7 +50,7 @@ fn main() -> Result<(), Box<dyn Error >>{
                 let tmp = Cell::parse_cell(&page_0, (v-100) as usize );
                 if let Ok(name) = tmp{
                     if name[1] != String::from("sqlite_sequence") {
-                        result = result +  &format!("{}", name[1]);
+                        result = result +  &format!("{} ", name[1]);
                     }
                 }
             }
