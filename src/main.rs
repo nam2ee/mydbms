@@ -8,6 +8,7 @@ mod page;
 mod util;
 mod read;
 mod sql_engine;
+mod command_parse;
 
 use page::Cell;
 
