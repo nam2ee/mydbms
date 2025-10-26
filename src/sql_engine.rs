@@ -1,5 +1,5 @@
-use crate::{page::Cell, read::SqliteRead, command_parse::extract_columns, command_parse::extract_tables};
-use std::fs::File;
+use crate::{page::Cell, read::SqliteRead, command_parse::extract_columns, command_parse::extract_tables, command_parse::extract_where_conditions};
+use std::{collections::HashMap, fs::File};
 
 
 pub fn sql_engine(file_handler: &mut File, v: &str, metadata: Vec<Vec<String>>, page_size: u16) {
@@ -8,13 +8,15 @@ pub fn sql_engine(file_handler: &mut File, v: &str, metadata: Vec<Vec<String>>, 
 
     let target_columns = extract_columns(&tmp_buffer);
     let target_from_table = extract_tables(&tmp_buffer);
+    let where_conditions = extract_where_conditions(&tmp_buffer);
 
     match command {
-        "SELECT" => {
+        "select" => {
             let _ = select(
                 file_handler,
                 target_columns,
                 target_from_table,
+                where_conditions,
                 page_size,
                 metadata,
             );
@@ -29,6 +31,7 @@ fn select(
     file_handler: &mut File,
     target_columns: Vec<String>,
     froms: Vec<String>,
+    where_conditions: Option<HashMap<String, String>>,
     page_size: u16,
     metadata: Vec<Vec<String>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -48,7 +51,7 @@ fn select(
             let row_count = SqliteRead::row_count(&page)?;
             let cell_ptrs = Cell::read_cell_pointer_array(&page, row_count);
 
-            if target_columns.len() == 1 && target_columns[0] == "COUNT(*)" {
+            if target_columns.len() == 1 && target_columns[0] == "count(*)" {
                 println!("{}", row_count);
                 continue;
             }
@@ -59,20 +62,65 @@ fn select(
                 cell_list.push(cell);
             }
 
-            for cell in cell_list {
-                let mut row_output = Vec::new();
-                for target in &target_columns {
-                    if let Some(value) = cell.get(target) {
-                        row_output.push(value.clone());
-                    }
-                }
-                // 한 행의 모든 컬럼을 | 또는 공백으로 구분해서 출력
-                println!("{}", row_output.join("|"));
-            }
+            cell_filtering(cell_list, &where_conditions, &target_columns);
+
+            
         } else {
             continue;
         }
     }
 
     Ok(())
+}
+
+
+fn cell_filtering( cell_list:Vec<HashMap<String, String>> , condition_list: &Option<HashMap<String, String>>, target_columns: &Vec<String>) {
+    let is_none = condition_list.is_none();
+
+
+    if is_none {
+        cell_list.iter().for_each( |cell| { 
+            let mut row_output = Vec::new();
+            for target in target_columns {
+
+                    if let Some(value) = cell.get(target) {
+                        row_output.push(value.clone());
+                    }
+                    
+                }
+                println!("{}", row_output.join("|"));
+        });
+
+    } else {
+        
+        cell_list.iter().for_each( |cell| { 
+            let condition_map = condition_list.clone().unwrap();
+            let mut row_output = Vec::new();
+            let mut flag = true; 
+            for target in target_columns {
+
+                if let Some(value) = cell.get(target) {
+                    row_output.push(value.clone());
+                    let compe = condition_map.get(target);
+                   
+                    if compe.is_none() {
+                        continue;
+                    } else {
+                        let compe = compe.unwrap();
+                        if value.to_lowercase() != *compe {
+                            flag = false;
+                        }
+                    }
+
+                }
+            }
+
+            if flag {
+                println!("{}", row_output.join("|"));
+            }
+
+        });
+
+    }
+
 }
